@@ -1,0 +1,51 @@
+{
+	admin off
+	persist_config off
+	auto_https off
+	log {
+		format json
+	}
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+:{$PORT} {
+	handle /health {
+		respond "OK" 200
+	}
+
+	handle {
+		# Extract
+		@authenticated {
+			header Authorization "Bearer {$API_KEY}"
+		}
+		@authenticated_alt {
+			header X-API-Key "{$API_KEY}"
+		}
+
+		# Handle Auth
+		handle @authenticated {
+			reverse_proxy {$TARGET_DOMAIN}:{$TARGET_PORT} {
+				header_up Host {$TARGET_DOMAIN}
+				header_up X-Forwarded-Proto {scheme}
+				header_up X-Forwarded-For {remote_host}
+			}
+		}
+
+		handle @authenticated_alt {
+			reverse_proxy {$TARGET_DOMAIN}:{$TARGET_PORT} {
+				header_up Host {$TARGET_DOMAIN}
+				header_up X-Forwarded-Proto {scheme}
+				header_up X-Forwarded-For {remote_host}
+			}
+		}
+
+		# Handle No Auth
+		handle {
+			respond "Unauthorized: Invalid or missing API key" 401 {
+				header Content-Type "text/plain"
+			}
+		}
+	}
+}
